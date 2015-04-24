@@ -254,7 +254,7 @@ def classify(tree, instance, classifier, class_index):
   if attribute in subtree:
     return classify(subtree[attribute], instance, classifier, class_index)
   else:
-    if attribute=='?':
+    if attribute=='?'
       return get_majority(subtree, classifier, class_index)
     else:
       return get_close_neighbor_value(subtree, classifier, class_index, attribute)
