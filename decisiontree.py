@@ -75,6 +75,8 @@ def entropy(instances, classifier, class_index):
         index = int(index)
       value_counts[index] += 1
 
+  # pdb.set_trace()
+
   num_values = len(value_counts)
   if num_values <= 1:
       return 0
@@ -133,6 +135,7 @@ def split_instances(instances, attb_index):
 
   split_instances = defaultdict(list)
   for instance in instances:
+    pdb.set_trace()
     attb = instance[attb_index]
     split_instances[attb].append(instance)
   return split_instances
@@ -199,7 +202,6 @@ def make_tree(instances, classifier, class_index, depth = 0):
         leaves = split_instances(instances, best_index)
 
         for attribute_value in leaves:
-          # pdb.set_trace()
           subtree = make_tree(leaves[attribute_value],
                               classifier,
                               class_index,
@@ -254,7 +256,7 @@ def classify(tree, instance, classifier, class_index):
   if attribute in subtree:
     return classify(subtree[attribute], instance, classifier, class_index)
   else:
-    if attribute=='?'
+    if attribute=='?':
       return get_majority(subtree, classifier, class_index)
     else:
       return get_close_neighbor_value(subtree, classifier, class_index, attribute)
@@ -264,7 +266,7 @@ testdata_slice = trainingdata[int(len(trainingdata)//2+1):]
 
 tree = make_tree(trainingdata_slice, 1, len(trainingdata[0])-1)
 pprint(tree)
-pdb.set_trace()
+# pdb.set_trace()
 correct_count = 0
 for instance in testdata_slice:
     predicted_label = classify(tree, instance, 1, len(trainingdata[0])-1)
