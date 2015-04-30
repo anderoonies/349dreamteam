@@ -1,6 +1,7 @@
 from __future__ import division
 
 import sys
+import os
 import csv
 import math
 import simple_ml
@@ -47,22 +48,6 @@ def cleanfloats(instances):
         else:
           instance[attb_index] = round(float(instance[attb_index]), 0)
   return instances
-
-if len(sys.argv) < 4:
-  sys.exit(('Usage: {} trainingdata.csv validationdata.csv testdata.csv').format(sys.argv[0]))
-else:
-  with open(sys.argv[1], 'r') as f:
-    reader = csv.reader(f)
-    trainingdata = list(reader)[1:]
-    trainingdata = cleanfloats(trainingdata)
-  with open(sys.argv[2], 'r') as f:
-    reader = csv.reader(f)
-    validationdata = list(reader)[1:]
-    validationdata = cleanfloats(validationdata)
-  with open(sys.argv[3], 'r') as f:
-    reader = csv.reader(f)
-    testdata = list(reader)[1:]
-    testdata = cleanfloats(testdata)
 
 def entropy(instances, classifier, class_index):
   """Calculate the entropy across instances of a binary classified dataset.
@@ -142,7 +127,6 @@ def split_instances(instances, attb_index):
 
   split_instances = defaultdict(list)
   for instance in instances:
-    # pdb.set_trace()
     attb = instance[attb_index]
     split_instances[attb].append(instance)
   return split_instances
@@ -156,9 +140,11 @@ def choose_best_attb_index(instances, classifier, class_index, index_list):
   index_list -- list of possible attribute indices
   """
 
+  # pdb.set_trace()
+
   max_info = 0
   max_info_index = 0
-  for i in range(1,len(index_list)):
+  for i in range(0,len(index_list)):
     info = information_gain(instances, classifier, i, class_index)
     if info>max_info:
       max_info = info
@@ -192,19 +178,25 @@ def make_tree(instances, classifier, class_index, depth = 0):
     class_index -- index of classifier.
     '''
   
-    attribute_range = range(len(instances[0]))
+    attribute_range = range(0,len(instances[0]))
     attribute_range.remove(class_index) # don't want to split on the classifier
 
     pos_neg_counts = defaultdict(int)
     for instance in instances:
       pos_neg_counts[instance[class_index]]+=1
     
-    if len(pos_neg_counts) == 1 or (len(pos_neg_counts)==2 and '?' in pos_neg_counts.keys()): # only positive or only negative
-      class_label = common_value(instances, classifier, class_index)
-      return class_label        
+    if (len(pos_neg_counts)==2 and '?' in pos_neg_counts.keys()): # only positive or only negative
+      class_label = [key for key in pos_neg_counts.keys() if key!='?']
+      return class_label
+    elif len(pos_neg_counts) == 1:
+      return pos_neg_counts.keys()[0]
     else:
-        best_index = choose_best_attb_index(instances, classifier, class_index, range(1, len(attribute_range)))        
-
+      max_tuple = max(pos_neg_counts.items(), key=lambda a: a[1])
+      if float(max_tuple[1])/len(instances) > .79:
+        return max_tuple[0]
+      else:
+        best_index = choose_best_attb_index(instances, classifier, class_index, range(0, len(attribute_range)))        
+        # pdb.set_trace()
         tree = {best_index:{}}
         leaves = split_instances(instances, best_index)
 
@@ -218,7 +210,7 @@ def make_tree(instances, classifier, class_index, depth = 0):
 
           tree[best_index][attribute_value] = subtree
 
-    return tree
+        return tree
 
 def get_majority(tree, classifier, class_index):
   counter = 0
@@ -280,6 +272,10 @@ def classify(tree, instance, classifier, class_index):
       return get_close_neighbor_value(subtree, classifier, class_index, attribute)
 
 def prune(whole_tree, path, subtree, validationdata):
+  sys.stdout.write(' '*40)
+  sys.stdout.flush()
+  sys.stdout.write('pruning tree at path: {}\r'.format('-'.join(str(x) for x in path)))
+  sys.stdout.flush()
   if isinstance(subtree, dict):
     if not len(subtree):
       path.pop()
@@ -315,7 +311,8 @@ def check_prune(tree, path, validationdata):
   tree_copy = popper(tree_copy, path) # gets us to the subtree
   # pdb.set_trace()
   if validate(tree_copy, validationdata) > validate(tree, validationdata):
-    print 'pruning, increase from {} to {}'.format(validate(tree, validationdata), validate(tree_copy, validationdata))
+    sys.stdout.write('\npruning, increase from {} to {} \n'.format(validate(tree, validationdata), validate(tree_copy, validationdata)))
+    sys.stdout.flush()
     return True
   else:
     return False
@@ -341,42 +338,48 @@ def validate(tree, validationdata):
   # print '{} classified correct, {} percent'.format(correct_count, correct_count/len(validationdata))
   return correct_count/len(validationdata)
 
+def boolprint(tree):
+  # pdb.set_trace()
+  attributes = ['Winning percentage of team 1', 'Winning percentage of team 2', 'weather', 'the temperature', '# of injured on team 1', '# of injured on team 2', 'ERA of pitcher 1',
+                'ERA of pitcher 2', 'days since team 1\'s last game', 'days since team 2\'s last game', 'at team 1\s home', 'run differential of team 1', 'run differential of team 1', 'winner']
+  # pdb.set_trace()
+  if isinstance(tree, dict):
+    # pdb.set_trace()
+    if len(tree.keys())==1:
+      children = tree[tree.keys()[0]]
+      for childkey in children.keys():
+        sub = boolprint(children[childkey])
+        return 'if {} is {}, {}'.format(attributes[tree.keys()[0]], childkey, sub)
+  elif isinstance(tree,int):
+    return 'then {}'.format(tree)
+  elif isinstance(tree,str):
+    return 'then {}'.format(tree)
 
-trainingdata_slice = trainingdata[1:int(len(trainingdata)//2)]
-testdata_slice = trainingdata[int(len(trainingdata)//2+1):]
+if len(sys.argv) < 4:
+  sys.exit(('Usage: {} trainingdata.csv validationdata.csv testdata.csv -prune -print').format(sys.argv[0]))
+else:
+  with open(sys.argv[1], 'r') as f:
+    reader = csv.reader(f)
+    trainingdata = list(reader)[1:]
+    trainingdata = cleanfloats(trainingdata)
+  with open(sys.argv[2], 'r') as f:
+    reader = csv.reader(f)
+    validationdata = list(reader)[1:]
+    validationdata = cleanfloats(validationdata)
+  with open(sys.argv[3], 'r') as f:
+    reader = csv.reader(f)
+    testdata = list(reader)[1:]
+    testdata = cleanfloats(testdata)
 
-tree = make_tree(trainingdata_slice, 1, len(trainingdata[0])-1, 1)
-# pprint(tree)
-# pdb.set_trace()
-correct_count = 0
-for instance in testdata_slice:
-    predicted_label = classify(tree, instance, 1, len(trainingdata[0])-1)
-    actual_label = instance[len(trainingdata[0])-1]
-    if predicted_label==actual_label:
-      correct_count+=1
+  tree = make_tree(trainingdata, 1, len(trainingdata[0])-1, 1)
+  # pdb.set_trace()
 
+  print 'Initial tree is at {}% accuracy.'.format(validate(tree, validationdata)*100)
+  if len(sys.argv) > 4:
+    if '-prune' in sys.argv:
+      print('---Pruning tree--- \n')
+      prune(tree, [tree.keys()[0]], tree[tree.keys()[0]], validationdata)
 
-
-print 'Accuracy is {} out of {}, {} percent'.format(correct_count, len(testdata_slice), correct_count/len(testdata_slice))
-    # print 'predicted: {}; actual: {}'.format(predicted_label, actual_label)
-
-validate(tree, validationdata)
-
-done = False
-#here is the animation
-def animate():
-    for c in itertools.cycle(['|', '/', '-', '\\']):
-        if done:
-            break
-        sys.stdout.write('\rloading ' + c)
-        sys.stdout.flush()
-        time.sleep(0.1)
-    sys.stdout.write('\rDone!     ')
-
-t = threading.Thread(target=animate)
-t.start()
-prune(tree, [tree.keys()[0]], tree[tree.keys()[0]], validationdata)
-time.sleep(10)
-done = True
-
-
+    if '-print' in sys.argv:
+      print('---Printing tree--- \n')
+      print boolprint(tree)
