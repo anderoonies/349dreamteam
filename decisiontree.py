@@ -6,13 +6,16 @@ import math
 import simple_ml
 import time
 import pdb
+import traceback
+import itertools
+import threading
+import time
 from heapq import nsmallest
 from pprint import pprint
 from collections import defaultdict
-    
-clean_instances = simple_ml.load_instances('agaricus-lepiota.data', filter_missing_values=False)
-attribute_names = simple_ml.load_attribute_names('agaricus-lepiota.attributes')
-attribute_names_and_values = simple_ml.load_attribute_names_and_values('agaricus-lepiota.attributes')
+from copy import deepcopy
+
+
 
 def isfloat(x):
   try:
@@ -45,14 +48,18 @@ def cleanfloats(instances):
           instance[attb_index] = round(float(instance[attb_index]), 0)
   return instances
 
-if len(sys.argv) < 3:
-  sys.exit(('Usage: {} trainingdata.csv testdata.csv').format(sys.argv[0]))
+if len(sys.argv) < 4:
+  sys.exit(('Usage: {} trainingdata.csv validationdata.csv testdata.csv').format(sys.argv[0]))
 else:
   with open(sys.argv[1], 'r') as f:
     reader = csv.reader(f)
     trainingdata = list(reader)[1:]
     trainingdata = cleanfloats(trainingdata)
   with open(sys.argv[2], 'r') as f:
+    reader = csv.reader(f)
+    validationdata = list(reader)[1:]
+    validationdata = cleanfloats(validationdata)
+  with open(sys.argv[3], 'r') as f:
     reader = csv.reader(f)
     testdata = list(reader)[1:]
     testdata = cleanfloats(testdata)
@@ -135,7 +142,7 @@ def split_instances(instances, attb_index):
 
   split_instances = defaultdict(list)
   for instance in instances:
-    pdb.set_trace()
+    # pdb.set_trace()
     attb = instance[attb_index]
     split_instances[attb].append(instance)
   return split_instances
@@ -201,6 +208,8 @@ def make_tree(instances, classifier, class_index, depth = 0):
         tree = {best_index:{}}
         leaves = split_instances(instances, best_index)
 
+        # group leaves together
+
         for attribute_value in leaves:
           subtree = make_tree(leaves[attribute_value],
                               classifier,
@@ -231,9 +240,6 @@ def get_close_neighbor_value(tree, classifier, class_index, attribute):
         counter-=1
   return 1 if counter>0 else 0
 
-
-
-
 def classify(tree, instance, classifier, class_index):
   """Returns the classification of an instance.
   Args:
@@ -248,12 +254,24 @@ def classify(tree, instance, classifier, class_index):
       # print "Right here"
       return tree
 
-  attb_index = tree.keys()[0]
-  subtree = tree.values()[0]
+  try:
+    attb_index = tree.keys()[0]
+    subtree = tree.values()[0]
+  except IndexError, e:
+    print('classifying issue')
+    pdb.set_trace()
+    raise e
 
-  attribute = instance[attb_index]
+  try:
+    attribute = instance[attb_index]
+  except Exception, e:
+    print('attb issue')
+    pdb.set_trace()
+    raise e
 
   if attribute in subtree:
+    if isinstance(subtree[attribute], dict) and not len((subtree[attribute])):
+      return get_majority(subtree, classifier, class_index)
     return classify(subtree[attribute], instance, classifier, class_index)
   else:
     if attribute=='?':
@@ -261,11 +279,74 @@ def classify(tree, instance, classifier, class_index):
     else:
       return get_close_neighbor_value(subtree, classifier, class_index, attribute)
 
+def prune(whole_tree, path, subtree, validationdata):
+  if isinstance(subtree, dict):
+    if not len(subtree):
+      path.pop()
+    for leaf in subtree.items():
+      # pdb.set_trace()
+      path.append(leaf[0])
+      if check_prune(whole_tree, path, validationdata):
+        whole_tree = clip_leaf(whole_tree, path)
+        path.pop()
+      else:
+        prune(whole_tree, path, leaf[1], validationdata)
+    path.pop()
+  elif isinstance(subtree, int):
+    if check_prune(whole_tree, path, validationdata):
+      whole_tree = clip_leaf(whole_tree, path)
+      path.pop()
+    # pdb.set_trace()
+    path.pop()
+    return
+  else: # it's a fucking '?'
+    path.pop()
+    return
+
+def popper(d,sequence):
+  if len(sequence)<=1:
+    return {}
+  else:
+    d[sequence[0]] = popper(d.pop(sequence[0]), sequence[1:])
+    return d
+
+def check_prune(tree, path, validationdata):
+  tree_copy = deepcopy(tree)
+  tree_copy = popper(tree_copy, path) # gets us to the subtree
+  # pdb.set_trace()
+  if validate(tree_copy, validationdata) > validate(tree, validationdata):
+    print 'pruning, increase from {} to {}'.format(validate(tree, validationdata), validate(tree_copy, validationdata))
+    return True
+  else:
+    return False
+
+def clip_leaf(whole_tree, path):
+  return popper(whole_tree, path)
+
+def validate(tree, validationdata):
+  correct_count=0
+
+  for instance in validationdata:
+    try:
+      predicted_label = classify(tree, instance, 1, len(trainingdata[0])-1)
+    except IndexError, e:
+      print('you hit an index issue in classify. check out tree.keys()')
+      pdb.set_trace()
+      pprint(tree)
+      raise e
+    actual_label = instance[len(trainingdata[0])-1]
+    if predicted_label==actual_label:
+      correct_count+=1
+
+  # print '{} classified correct, {} percent'.format(correct_count, correct_count/len(validationdata))
+  return correct_count/len(validationdata)
+
+
 trainingdata_slice = trainingdata[1:int(len(trainingdata)//2)]
 testdata_slice = trainingdata[int(len(trainingdata)//2+1):]
 
-tree = make_tree(trainingdata_slice, 1, len(trainingdata[0])-1)
-pprint(tree)
+tree = make_tree(trainingdata_slice, 1, len(trainingdata[0])-1, 1)
+# pprint(tree)
 # pdb.set_trace()
 correct_count = 0
 for instance in testdata_slice:
@@ -274,5 +355,28 @@ for instance in testdata_slice:
     if predicted_label==actual_label:
       correct_count+=1
 
+
+
 print 'Accuracy is {} out of {}, {} percent'.format(correct_count, len(testdata_slice), correct_count/len(testdata_slice))
     # print 'predicted: {}; actual: {}'.format(predicted_label, actual_label)
+
+validate(tree, validationdata)
+
+done = False
+#here is the animation
+def animate():
+    for c in itertools.cycle(['|', '/', '-', '\\']):
+        if done:
+            break
+        sys.stdout.write('\rloading ' + c)
+        sys.stdout.flush()
+        time.sleep(0.1)
+    sys.stdout.write('\rDone!     ')
+
+t = threading.Thread(target=animate)
+t.start()
+prune(tree, [tree.keys()[0]], tree[tree.keys()[0]], validationdata)
+time.sleep(10)
+done = True
+
+
