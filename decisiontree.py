@@ -272,7 +272,7 @@ def classify(tree, instance, classifier, class_index):
       return get_close_neighbor_value(subtree, classifier, class_index, attribute)
 
 def prune(whole_tree, path, subtree, validationdata):
-  sys.stdout.write(' '*40)
+  sys.stdout.write('\r' + ' '*40)
   sys.stdout.flush()
   sys.stdout.write('pruning tree at path: {}\r'.format('-'.join(str(x) for x in path)))
   sys.stdout.flush()
@@ -338,22 +338,11 @@ def validate(tree, validationdata):
   # print '{} classified correct, {} percent'.format(correct_count, correct_count/len(validationdata))
   return correct_count/len(validationdata)
 
-# def boolprint(tree):
-#   # pdb.set_trace()
-#   attributes = ['Winning percentage of team 1', 'Winning percentage of team 2', 'weather', 'the temperature', '# of injured on team 1', '# of injured on team 2', 'ERA of pitcher 1',
-#                 'ERA of pitcher 2', 'days since team 1\'s last game', 'days since team 2\'s last game', 'at team 1\s home', 'run differential of team 1', 'run differential of team 1', 'winner']
-#   # pdb.set_trace()
-#   if isinstance(tree, dict):
-#     # pdb.set_trace()
-#     if len(tree.keys())==1:
-#       children = tree[tree.keys()[0]]
-#       for childkey in children.keys():
-#         sub = boolprint(children[childkey])
-#         return 'if {} is {}, {}'.format(attributes[tree.keys()[0]], childkey, sub)
-#   elif isinstance(tree,int):
-#     return 'then {}'.format(tree)
-#   elif isinstance(tree,str):
-#     return 'then {}'.format(tree)
+def countsplits(tree):
+  for key, value in tree.iteritems():
+    if isinstance(value, dict):
+      return 1 + countsplits(value)
+
 
 def boolprint(tree, top=0, indent=0):
   attributes = ['Winning percentage of team 1', 'Winning percentage of team 2', 'weather', 'the temperature', '# of injured on team 1', '# of injured on team 2', 'ERA of pitcher 1', 
@@ -373,9 +362,8 @@ def boolprint(tree, top=0, indent=0):
 
 def make_curve(trainingdata, validationdata):
   accuracies = []
-  for i in range(1,10):
+  for i in range(1,11):
     data_slice = trainingdata[0:int((i*len(trainingdata))/10)]
-    print(len(data_slice))
     tree = make_tree(data_slice, 1, len(trainingdata[0])-1, 0)
     accuracies.append(validate(tree, validationdata))
   return accuracies
@@ -383,7 +371,7 @@ def make_curve(trainingdata, validationdata):
 
 
 if len(sys.argv) < 4:
-  sys.exit(('Usage: {} trainingdata.csv validationdata.csv testdata.csv -prune -print').format(sys.argv[0]))
+  sys.exit(('Usage: {} trainingdata.csv validationdata.csv testdata.csv -prune -print -curve').format(sys.argv[0]))
 else:
   with open(sys.argv[1], 'r') as f:
     reader = csv.reader(f)
@@ -414,3 +402,10 @@ else:
     if '-curve' in sys.argv:
       print('---Generating curve--- \n')
       print make_curve(trainingdata, validationdata)
+
+    if '-count' in sys.argv:
+      print ('---Counting splits--- \n')
+      print 'Splits before pruning: {}'.format(countsplits(tree))
+      print 'Splits after pruning: {}'.format(prune(tree, [tree.keys()[0]], tree[tree.keys()[0]], validationdata))
+
+
