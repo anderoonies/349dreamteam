@@ -338,10 +338,13 @@ def validate(tree, validationdata):
   # print '{} classified correct, {} percent'.format(correct_count, correct_count/len(validationdata))
   return correct_count/len(validationdata)
 
-def countsplits(tree):
+def countsplits(tree, count):
+  # pdb.set_trace()
   for key, value in tree.iteritems():
     if isinstance(value, dict):
-      return 1 + countsplits(value)
+      count += 1
+      return count + countsplits(tree[key], count)
+  return count
 
 
 def boolprint(tree, top=0, indent=0):
@@ -371,7 +374,7 @@ def make_curve(trainingdata, validationdata):
 
 
 if len(sys.argv) < 4:
-  sys.exit(('Usage: {} trainingdata.csv validationdata.csv testdata.csv -prune -print -curve').format(sys.argv[0]))
+  sys.exit(('Usage: {} trainingdata.csv validationdata.csv testdata.csv -prune -print -curve -count').format(sys.argv[0]))
 else:
   with open(sys.argv[1], 'r') as f:
     reader = csv.reader(f)
@@ -393,7 +396,7 @@ else:
   if len(sys.argv) > 4:
     if '-prune' in sys.argv:
       print('---Pruning tree--- \n')
-      prune(tree, [tree.keys()[0]], tree[tree.keys()[0]], validationdata)
+      prunetree = prune(tree, [tree.keys()[0]], tree[tree.keys()[0]], validationdata)
 
     if '-print' in sys.argv:
       print('---Printing tree--- \n')
@@ -402,10 +405,22 @@ else:
     if '-curve' in sys.argv:
       print('---Generating curve--- \n')
       print make_curve(trainingdata, validationdata)
+      if '-prune' in sys.argv:
+        print 'and for pruned: {}'.format(make_curve, prunetree)
 
     if '-count' in sys.argv:
       print ('---Counting splits--- \n')
-      print 'Splits before pruning: {}'.format(countsplits(tree))
-      print 'Splits after pruning: {}'.format(prune(tree, [tree.keys()[0]], tree[tree.keys()[0]], validationdata))
+      print 'Splits before pruning: {}'.format(countsplits(tree, 0))
+      print 'Splits after pruning: {}'.format(countsplits(prunetree, 0))
+
+    if '-test' in sys.argv:
+      print ('---Classifying test data--- \n')
+      line_number = 0
+      with open('results.csv', 'w') as f:
+        writer = csv.writer(f)
+        for instance in testdata:
+          instance[-1] = classify(tree, instance, 1, len(instance)-1)
+          writer.writerow(instance)
 
 
+        
