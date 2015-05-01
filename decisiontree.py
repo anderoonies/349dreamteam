@@ -338,22 +338,49 @@ def validate(tree, validationdata):
   # print '{} classified correct, {} percent'.format(correct_count, correct_count/len(validationdata))
   return correct_count/len(validationdata)
 
-def boolprint(tree):
-  # pdb.set_trace()
-  attributes = ['Winning percentage of team 1', 'Winning percentage of team 2', 'weather', 'the temperature', '# of injured on team 1', '# of injured on team 2', 'ERA of pitcher 1',
-                'ERA of pitcher 2', 'days since team 1\'s last game', 'days since team 2\'s last game', 'at team 1\s home', 'run differential of team 1', 'run differential of team 1', 'winner']
+# def boolprint(tree):
+#   # pdb.set_trace()
+#   attributes = ['Winning percentage of team 1', 'Winning percentage of team 2', 'weather', 'the temperature', '# of injured on team 1', '# of injured on team 2', 'ERA of pitcher 1',
+#                 'ERA of pitcher 2', 'days since team 1\'s last game', 'days since team 2\'s last game', 'at team 1\s home', 'run differential of team 1', 'run differential of team 1', 'winner']
+#   # pdb.set_trace()
+#   if isinstance(tree, dict):
+#     # pdb.set_trace()
+#     if len(tree.keys())==1:
+#       children = tree[tree.keys()[0]]
+#       for childkey in children.keys():
+#         sub = boolprint(children[childkey])
+#         return 'if {} is {}, {}'.format(attributes[tree.keys()[0]], childkey, sub)
+#   elif isinstance(tree,int):
+#     return 'then {}'.format(tree)
+#   elif isinstance(tree,str):
+#     return 'then {}'.format(tree)
+
+def boolprint(tree, top=0, indent=0):
+  attributes = ['Winning percentage of team 1', 'Winning percentage of team 2', 'weather', 'the temperature', '# of injured on team 1', '# of injured on team 2', 'ERA of pitcher 1', 
+  'ERA of pitcher 2', 'days since team 1\'s last game', 'days since team 2\'s last game', 'at team 1\s home', 'run differential of team 1', 'run differential of team 2', 'winner']
   # pdb.set_trace()
   if isinstance(tree, dict):
-    # pdb.set_trace()
-    if len(tree.keys())==1:
-      children = tree[tree.keys()[0]]
-      for childkey in children.keys():
-        sub = boolprint(children[childkey])
-        return 'if {} is {}, {}'.format(attributes[tree.keys()[0]], childkey, sub)
-  elif isinstance(tree,int):
-    return 'then {}'.format(tree)
-  elif isinstance(tree,str):
-    return 'then {}'.format(tree)
+    for key, value in tree.iteritems():
+      if isinstance(value, dict):
+        for child_key, child_value in value.iteritems():
+          print '{}{} if {} is {}, '.format('-'*indent, 'and'*(1-top), attributes[key], child_key)
+          print boolprint(value[child_key], 0, indent+1)
+          top = 1
+      print '\n'
+    return '\n'
+  else:
+    return '{} then {}'.format('-'*indent, tree)
+
+def make_curve(trainingdata, validationdata):
+  accuracies = []
+  for i in range(1,10):
+    data_slice = trainingdata[0:int((i*len(trainingdata))/10)]
+    print(len(data_slice))
+    tree = make_tree(data_slice, 1, len(trainingdata[0])-1, 0)
+    accuracies.append(validate(tree, validationdata))
+  return accuracies
+
+
 
 if len(sys.argv) < 4:
   sys.exit(('Usage: {} trainingdata.csv validationdata.csv testdata.csv -prune -print').format(sys.argv[0]))
@@ -382,4 +409,8 @@ else:
 
     if '-print' in sys.argv:
       print('---Printing tree--- \n')
-      print boolprint(tree)
+      print boolprint(tree, 1)
+
+    if '-curve' in sys.argv:
+      print('---Generating curve--- \n')
+      print make_curve(trainingdata, validationdata)
