@@ -272,7 +272,7 @@ def classify(tree, instance, classifier, class_index):
       return get_close_neighbor_value(subtree, classifier, class_index, attribute)
 
 def prune(whole_tree, path, subtree, validationdata):
-  sys.stdout.write('\r' + ' '*40)
+  sys.stdout.write('\r' + ' '*120 + '\r')
   sys.stdout.flush()
   sys.stdout.write('pruning tree at path: {}\r'.format('-'.join(str(x) for x in path)))
   sys.stdout.flush()
@@ -366,7 +366,7 @@ def boolprint(tree, top=0, indent=0):
 def make_curve(trainingdata, validationdata):
   accuracies = []
   for i in range(1,11):
-    data_slice = trainingdata[0:int((i*len(trainingdata))/10)]
+    data_slice = trainingdata[0:(int((i*len(trainingdata))/10))]
     tree = make_tree(data_slice, 1, len(trainingdata[0])-1, 0)
     accuracies.append(validate(tree, validationdata))
   return accuracies
@@ -396,7 +396,11 @@ else:
   if len(sys.argv) > 4:
     if '-prune' in sys.argv:
       print('---Pruning tree--- \n')
-      prunetree = prune(tree, [tree.keys()[0]], tree[tree.keys()[0]], validationdata)
+      prune(tree, [tree.keys()[0]], tree[tree.keys()[0]], validationdata)
+      if '-count' in sys.argv:
+        print 'Splits after pruning: {}'.format(countsplits(tree, 0))
+      if '-curve' in sys.argv:
+        print 'Curve for pruned: {}'.format(make_curve(trainingdata, validationdata))
 
     if '-print' in sys.argv:
       print('---Printing tree--- \n')
@@ -405,13 +409,10 @@ else:
     if '-curve' in sys.argv:
       print('---Generating curve--- \n')
       print make_curve(trainingdata, validationdata)
-      if '-prune' in sys.argv:
-        print 'and for pruned: {}'.format(make_curve, prunetree)
 
     if '-count' in sys.argv:
       print ('---Counting splits--- \n')
       print 'Splits before pruning: {}'.format(countsplits(tree, 0))
-      print 'Splits after pruning: {}'.format(countsplits(prunetree, 0))
 
     if '-test' in sys.argv:
       print ('---Classifying test data--- \n')
